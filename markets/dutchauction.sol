@@ -26,7 +26,8 @@ contract DutchAuction is BaseMarket, OwnableUpgradeable {
     mapping(bytes32 => Auction) auctions;
     mapping(bytes32 => Bid[]) bids;
 
-    event AuctionCreated(bytes32 _listId, address _owner, address _nft, uint256 _tokenId, uint256 _startPrice, uint256 _endPrice, uint256 _duration, uint256 _nonce);
+    event AuctionCreated(bytes32 _listId, address _owner, address _nft, uint256 _tokenId
+        , uint256 _startPrice, uint256 _endPrice, address _payment, uint256 _startTime, uint256 _duration, uint256 _nonce);
     event AuctionCanceled(bytes32 _listId);
     event DutchBuy(address _owner, bytes32 _listId, uint256 _price, uint256 _fee);
 
@@ -60,18 +61,19 @@ contract DutchAuction is BaseMarket, OwnableUpgradeable {
     }
 
     function createAuction(address _nft, uint256 _tokenId, uint256 _startPrice, uint256 _endPrice, 
-            address _payment, uint256 _duration) public {
-        require(_duration > 300, "DutchAuction: invalid duration");
+            address _payment, uint256 _startTime, uint256 _duration) public checkPayment(_payment) {
+        require(_duration >= 5 minutes, "DutchAuction: invalid duration");
         require(_startPrice > _endPrice, "DutchAuction: invalid price");
+        require(_startTime > block.timestamp, "DutchAuction: invalid start time");
+        require(IERC721(_nft).ownerOf(_tokenId) == msg.sender, "DucthAuction: not the owner");
         uint256 _nonce = nextNonce;
-        fund.depositNFT(_nft, msg.sender, _tokenId);
         Auction memory auction = Auction({
             owner: msg.sender,
             nft: _nft,
             tokenId: _tokenId,
             startPrice: _startPrice,
             endPrice: _endPrice,
-            auctionTime: block.timestamp,
+            auctionTime: _startTime,
             payment: _payment,
             duration: _duration,
             nonce: _nonce
@@ -79,15 +81,14 @@ contract DutchAuction is BaseMarket, OwnableUpgradeable {
         bytes32 listId = _getAuctionId(auction);
         auctions[listId] = auction;
         nextNonce += 1;
-        emit AuctionCreated(listId, msg.sender, _nft, _tokenId, _startPrice, _endPrice, _duration, _nonce);
+        emit AuctionCreated(listId, msg.sender, _nft, _tokenId, _startPrice, _endPrice, _payment, _startTime, _duration, _nonce);
     }
 
     function cancelAuction(bytes32 listId) public {
         Auction memory auction = auctions[listId];
         require(auction.owner != address(0), "DutchAuction: auction is expired");
-        require(auction.owner == msg.sender, "DutchAuction: auction not exist");
+        require(auction.owner == msg.sender, "DutchAuction: msg not from auction owner");
         delete auctions[listId];
-        fund.withdrawNFT(auction.nft, msg.sender, auction.tokenId);
         emit AuctionCanceled(listId);
     }
 
@@ -102,7 +103,7 @@ contract DutchAuction is BaseMarket, OwnableUpgradeable {
             fund.withdrawERC20From(auction.payment, msg.sender, devAddr, fee);
         }
         fund.withdrawERC20From(auction.payment, msg.sender, auction.owner, currentPrice-fee);
-        fund.withdrawNFT(auction.nft, msg.sender, auction.tokenId);
+        fund.withdrawNFTFrom(auction.nft, auction.owner, msg.sender, auction.tokenId);
         emit DutchBuy(msg.sender, _listId, currentPrice, fee);
     }
 

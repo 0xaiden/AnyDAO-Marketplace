@@ -11,6 +11,10 @@ contract Onetime is BaseVesting {
     constructor(address _factory) BaseVesting(_factory) {
     }
 
+    function name() external pure virtual override returns(bytes32) {
+        return 0x0000000000000000000000000000000000000000000000000000000000000001;
+    }
+
     function add(address saft, uint256 _releaseTime) public onlyFactory {
         releaseTimes[saft] = _releaseTime;
     }

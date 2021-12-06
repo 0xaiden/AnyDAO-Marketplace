@@ -15,6 +15,10 @@ contract Staged is BaseVesting {
     constructor(address _factory) BaseVesting(_factory) {
     }
 
+    function name() external pure virtual override returns(bytes32) {
+        return 0x0000000000000000000000000000000000000000000000000000000000000003;
+    }
+
     function add(address saft, uint256[] memory _releaseTimes, uint256[] memory _releaseAmounts) public onlyFactory {
         require(_releaseTimes.length == _releaseAmounts.length, "Staged: invalid length");
         uint256 lastTime = 0;

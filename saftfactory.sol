@@ -2,8 +2,10 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "./saft.sol";
+import "./interfaces/ifactory.sol";
 import "./interfaces/ivesting.sol";
 import "./vestings/staged.sol";
 import "./vestings/onetime.sol";
@@ -11,128 +13,126 @@ import "./vestings/linearly.sol";
 
 contract SaftFactory is OwnableUpgradeable {
 
+    using SafeERC20Upgradeable for IERC20Upgradeable;
+
     struct TokenCreator {
         address token;
         address creator;
     }
 
-    address public _xKey;
-    address public _devAddr;
-    uint256 public _fee;
+    SaftParam saftParam;
+    address public acc;
+    address public devAddress;
+    uint256 public fee;
     
     mapping(bytes32 => address) _vestingModels;
     mapping(address => bool) _safts;
+    mapping(address => uint256) public nextId;
 
-    event CreateOnetime(address saft, uint256 releaseTime);
-    event CreateLinearly(address saft, uint256 startTime, uint256 endTime, uint256 count);
-    event CreateStaged(address saft, uint256[] releaseTimes, uint256[] releaseAmounts);
+    event CreateOnetime(address saft, SaftParam param, uint256 releaseTime);
+    event CreateLinearly(address saft, SaftParam param, uint256 startTime, uint256 endTime, uint256 count);
+    event CreateStaged(address saft, SaftParam param, uint256[] releaseTimes, uint256[] releaseAmounts);
+    event Blacked(address addr);
 
-    function initialize(address xkey, address devAddr) public initializer {
+    function initialize(address _acc, address _devAddr) public initializer {
         __Ownable_init();
-        _xKey = xkey;
-        _devAddr = devAddr;
+        acc = _acc;
+        devAddress = _devAddr;
     }
 
     modifier chargeFee() {
-        if (_fee != 0) {
-            require(IERC20(_xKey).transferFrom(msg.sender, address(this), _fee), "SaftFactory: failed to deduct xkey");
+        if (fee != 0) {
+            IERC20Upgradeable(acc).safeTransferFrom(msg.sender, address(this), fee);
         }
        _;
     }
 
-    function setFee(uint256 fee) public onlyOwner {
-        _fee = fee;
+    function devAddr() external view returns(address) {
+        return devAddress;
+    }
+
+    function black(address addr) public onlyOwner {
+        emit Blacked(addr);
+    }
+
+    function setFee(uint256 _fee) public onlyOwner {
+        fee = _fee;
     }
 
     function claimFee(address to) public onlyOwner {
-        require(IERC20(_xKey).transfer(to, IERC20(_xKey).balanceOf(address(this))));
+        require(IERC20Upgradeable(acc).transfer(to, IERC20Upgradeable(acc).balanceOf(address(this))));
     }
 
-    function addVesting(address addr, bytes32 model) public {
-        _vestingModels[model] = addr;
+    function addVesting(address addr) public {
+        _vestingModels[IVesting(addr).name()] = addr;
     }
 
-    function _mintSafts(Saft saft, address _owner, uint256[] memory counts, uint256[] memory tokenAmounts) internal {
-        require(counts.length == tokenAmounts.length, "SaftFactory: length mismatch");
-        for(uint256 i=0;i<counts.length;++i) {
-            uint256 count =counts[i];
-            uint256 tokenAmount =tokenAmounts[i];
+    function getSaftParam() external view returns (address, uint256, uint256, bool, string memory) {
+        return (saftParam.owner, saftParam.tokenAmount, saftParam.nextId, saftParam.haveToken, saftParam.institutionName);
+    }
+
+    function getSaftParam1() external view returns ( string memory, string memory, string memory, address) {
+        return (saftParam.webSite, saftParam.description, saftParam.logoUri, saftParam.vesting);
+    }
+
+    function _createSaft(SaftParam memory param, bytes32 _vesting) internal returns(address) {
+        require(param.counts.length == param.tokenAmounts.length, "SaftFactory: length mismatch");
+        param.vesting = _vestingModels[_vesting];
+        require(param.vesting != address(0), "SaftFactory: invalid vesting");
+        {
+            uint256 _tokenAmount = 0;
+            for (uint256 i=0;i<param.tokenAmounts.length;++i) {
+                _tokenAmount += (param.tokenAmounts[i] * param.counts[i]);
+            }
+            param.tokenAmount = _tokenAmount;
+        }
+        
+        param.nextId = nextId[param.token];
+        saftParam = param;
+        Saft saft = new Saft(param.token);
+        if (param.haveToken) {
+            IERC20Upgradeable(param.token).safeTransferFrom(msg.sender, address(saft), param.tokenAmount);
+        }
+        
+        for(uint256 i=0;i<param.counts.length;++i) {
+            uint256 count = param.counts[i];
+            uint256 tokenAmount = param.tokenAmounts[i];
+            nextId[param.token] += count;
             for (uint256 j=0;j<count;++j) {
-               saft.mintSaft(_owner, tokenAmount);
+               saft.mintSaft(param.owner, tokenAmount);
             }
         }
+        return address(saft);
     }
 
-    /*
-        avoid stack too deep
-        params order:
-            institutionName
-            projectName
-            tokenTicker
-            webSite
-            description
-            logoUri
-    */
-    function createOnetime(address _owner, address _token, string[] memory params, 
-            uint256[] memory counts, uint256[] memory tokenAmounts, uint256 releaseTime) public chargeFee {
-        
-        require(params.length == 6, "SaftFactory: params length should be 6");
-        bytes32 model = 0x0000000000000000000000000000000000000000000000000000000000000001;
-        address vesting = _vestingModels[model];
-        require(vesting != address(0), "SaftFactory: invalid vesting");
-        uint256 _tokenAmount = 0;
-        for (uint256 i=0;i<tokenAmounts.length;++i) {
-            _tokenAmount += tokenAmounts[i];
-        }
-        Saft saft = new Saft(_owner, _token, vesting, _tokenAmount, params);
-        _mintSafts(saft, _owner, counts, tokenAmounts);
-        Onetime(vesting).add(address(saft), releaseTime);
-        emit CreateOnetime(address(saft), releaseTime);
+    function createOnetime(SaftParam memory param, uint256 releaseTime) public chargeFee {
+        require(releaseTime > block.timestamp, "SaftFactory: release time < now");
+        address saft = _createSaft(param, 0x0000000000000000000000000000000000000000000000000000000000000001);
+        Onetime(saftParam.vesting).add(saft, releaseTime);
+        emit CreateOnetime(saft, saftParam, releaseTime);
+        delete saftParam;
     }
 
-    function createLinearly(address _owner, address _token, string[] memory params, 
-            uint256[] memory counts, uint256[] memory tokenAmounts, uint256 startTime, uint256 endTime, uint256 count) public chargeFee {
-
-        address vesting;
-        {
-            bytes32 model = 0x0000000000000000000000000000000000000000000000000000000000000002;
-            vesting = _vestingModels[model];
-            require(vesting != address(0), "SaftFactory: invalid vesting");
-        }
-
-        uint256 _tokenAmount = 0;
-        for (uint256 i=0;i<tokenAmounts.length;++i) {
-            _tokenAmount += tokenAmounts[i];
-        }
-        Saft saft = new Saft(_owner, _token, vesting, _tokenAmount, params);
-        _mintSafts(saft, _owner, counts, tokenAmounts);
-        Linearly(vesting).add(address(saft), startTime, endTime, count);
-        emit CreateLinearly(address(saft), startTime, endTime, count);
+    function createLinearly(SaftParam memory param, uint256 startTime, uint256 endTime, uint256 count) public chargeFee {
+        require(startTime > block.timestamp, "SaftFactory: start time < now");
+        address saft = _createSaft(param, 0x0000000000000000000000000000000000000000000000000000000000000002);
+        Linearly(saftParam.vesting).add(saft, startTime, endTime, count);
+        emit CreateLinearly(saft, param, startTime, endTime, count);
+        delete saftParam;
     }
 
-    function createStaged(address _owner, address _token, string[] memory params, uint256[] memory counts, uint256[] memory tokenAmounts, 
-        uint256[] memory releaseTimes, uint256[] memory releaseAmounts) public chargeFee {
-
+    function createStaged(SaftParam memory param, uint256[] memory releaseTimes, uint256[] memory releaseAmounts) public chargeFee {
         require(releaseTimes.length == releaseAmounts.length, "SaftFactory: length mismatch");
-        uint256 _tokenAmount = 0;
-        for (uint256 i=0;i<tokenAmounts.length;++i) {
-            _tokenAmount += tokenAmounts[i];
-        }
-
+        address saft = _createSaft(param, 0x0000000000000000000000000000000000000000000000000000000000000003);
         {
             uint256 _releaseAmount = 0;
             for (uint256 i=0;i<releaseAmounts.length;++i) {
                 _releaseAmount += releaseAmounts[i];
             }
-            require(_releaseAmount == _tokenAmount, "SaftFactory: amount mismatch");
+            require(_releaseAmount == saftParam.tokenAmount, "SaftFactory: amount mismatch");
         }
-
-        bytes32 model = 0x0000000000000000000000000000000000000000000000000000000000000003;
-        address vesting = _vestingModels[model];
-        require(vesting != address(0), "SaftFactory: invalid vesting");
-        Saft saft = new Saft(_owner, _token, vesting, _tokenAmount, params);
-        _mintSafts(saft, _owner, counts, tokenAmounts);
-        Staged(vesting).add(address(saft), releaseTimes, releaseAmounts);
-        emit CreateStaged(address(saft), releaseTimes, releaseAmounts);
+        Staged(param.vesting).add(saft, releaseTimes, releaseAmounts);
+        emit CreateStaged(saft, param, releaseTimes, releaseAmounts);
+        delete saftParam;
     }
 }

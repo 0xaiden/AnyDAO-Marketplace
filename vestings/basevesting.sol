@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "../interfaces/ivesting.sol";
 
-contract BaseVesting is IVesting {
+abstract contract BaseVesting is IVesting {
     address public factory;
     constructor(address _factory) {
         factory = _factory;

@@ -16,6 +16,10 @@ contract Linearly is BaseVesting {
     constructor(address _factory) BaseVesting(_factory) {
     }
 
+    function name() external pure virtual override returns(bytes32) {
+        return 0x0000000000000000000000000000000000000000000000000000000000000002;
+    }
+
     function add(address saft, uint256 startTime, uint256 endTime, uint256 count) public onlyFactory {
         items[saft] = LinearlyItem({
             startTime: startTime,

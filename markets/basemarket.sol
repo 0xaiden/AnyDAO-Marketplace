@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "../nftfund.sol";
 
+
 abstract contract BaseMarket is Initializable {
     
     uint256 nextNonce;
@@ -15,6 +16,12 @@ abstract contract BaseMarket is Initializable {
         nextNonce = 0;
         fund = NFTFund(_fund);
         devAddr = msg.sender;
+        // feeRatio = 100; // 1%
+    }
+
+    modifier checkPayment(address _payment) {
+        require(fund.availablePayments(_payment), "BaseMarket: invalid payment");
+        _;
     }
 
     modifier onlyDev() {

@@ -17,7 +17,7 @@ contract MyNFT is ERC721, Ownable {
     }
     
     function _baseURI() internal view virtual override returns (string memory) {
-        return "https://xplanet.io/";
+        return "https://accessifi.io/";
     }
 
     function totalSupply() public view returns(uint256) {
