@@ -11,6 +11,7 @@ contract Staged is BaseVesting {
     }
 
     mapping(address => TimeAmount[]) public timeAmounts;
+    mapping(address => uint256) public totalAmounts;
     
     constructor(address _factory) BaseVesting(_factory) {
     }
@@ -22,6 +23,7 @@ contract Staged is BaseVesting {
     function add(address saft, uint256[] memory _releaseTimes, uint256[] memory _releaseAmounts) public onlyFactory {
         require(_releaseTimes.length == _releaseAmounts.length, "Staged: invalid length");
         uint256 lastTime = 0;
+        uint256 totalAmount = 0;
         for (uint256 i=0;i<_releaseTimes.length;++i) {
             uint256 rt = _releaseTimes[i];
             require(lastTime < rt, "Staged: invalid time");
@@ -30,10 +32,12 @@ contract Staged is BaseVesting {
                 time: rt,
                 amount: _releaseAmounts[i]
             }));
+            totalAmount += _releaseAmounts[i];
         }
+        totalAmounts[saft] = totalAmount;
     }
 
-    function claimable(address _saft, uint256 /*_tokenId*/, uint256 /*_lockedAmount*/, uint256 _claimedAmount) external view virtual override returns(uint256) {
+    function claimable(address _saft, uint256 /*_tokenId*/, uint256 _lockedAmount, uint256 _claimedAmount) external view virtual override returns(uint256) {
         uint256 totalAmount = 0;
         TimeAmount[] memory _timeAmounts = timeAmounts[_saft];
         for (uint256 i=0;i<_timeAmounts.length;++i) {
@@ -43,7 +47,7 @@ contract Staged is BaseVesting {
             }
             totalAmount += ta.amount;
         }        
-        return totalAmount - _claimedAmount;
+        return (totalAmount * _lockedAmount) / totalAmounts[_saft] - _claimedAmount;
     }
 
 }

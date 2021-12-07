@@ -52,7 +52,7 @@ contract DutchAuction is BaseMarket, OwnableUpgradeable {
     }
 
     function _getAuctionId(Auction memory _auction) internal pure returns(bytes32) {
-        bytes32 listId = keccak256(abi.encodePacked(_auction.nft, _auction.tokenId, _auction.startPrice, _auction.duration, _auction.nonce));
+        bytes32 listId = keccak256(abi.encodePacked(_auction.nft, _auction.tokenId, _auction.startPrice, _auction.endPrice, _auction.payment, _auction.duration, _auction.nonce));
         return listId;
     }
 

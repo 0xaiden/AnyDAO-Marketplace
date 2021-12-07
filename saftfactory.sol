@@ -40,13 +40,6 @@ contract SaftFactory is OwnableUpgradeable {
         devAddress = _devAddr;
     }
 
-    modifier chargeFee() {
-        if (fee != 0) {
-            IERC20Upgradeable(acc).safeTransferFrom(msg.sender, address(this), fee);
-        }
-       _;
-    }
-
     function devAddr() external view returns(address) {
         return devAddress;
     }
@@ -81,10 +74,15 @@ contract SaftFactory is OwnableUpgradeable {
         require(param.vesting != address(0), "SaftFactory: invalid vesting");
         {
             uint256 _tokenAmount = 0;
+            uint256 _tokenCount = 0;
             for (uint256 i=0;i<param.tokenAmounts.length;++i) {
                 _tokenAmount += (param.tokenAmounts[i] * param.counts[i]);
+                _tokenCount += param.counts[i];
             }
             param.tokenAmount = _tokenAmount;
+            if (fee != 0) {
+                IERC20Upgradeable(acc).safeTransferFrom(msg.sender, address(this), fee * _tokenCount);
+            }
         }
         
         param.nextId = nextId[param.token];
@@ -105,7 +103,7 @@ contract SaftFactory is OwnableUpgradeable {
         return address(saft);
     }
 
-    function createOnetime(SaftParam memory param, uint256 releaseTime) public chargeFee {
+    function createOnetime(SaftParam memory param, uint256 releaseTime) public {
         require(releaseTime > block.timestamp, "SaftFactory: release time < now");
         address saft = _createSaft(param, 0x0000000000000000000000000000000000000000000000000000000000000001);
         Onetime(saftParam.vesting).add(saft, releaseTime);
@@ -113,7 +111,7 @@ contract SaftFactory is OwnableUpgradeable {
         delete saftParam;
     }
 
-    function createLinearly(SaftParam memory param, uint256 startTime, uint256 endTime, uint256 count) public chargeFee {
+    function createLinearly(SaftParam memory param, uint256 startTime, uint256 endTime, uint256 count) public {
         require(startTime > block.timestamp, "SaftFactory: start time < now");
         address saft = _createSaft(param, 0x0000000000000000000000000000000000000000000000000000000000000002);
         Linearly(saftParam.vesting).add(saft, startTime, endTime, count);
@@ -121,7 +119,7 @@ contract SaftFactory is OwnableUpgradeable {
         delete saftParam;
     }
 
-    function createStaged(SaftParam memory param, uint256[] memory releaseTimes, uint256[] memory releaseAmounts) public chargeFee {
+    function createStaged(SaftParam memory param, uint256[] memory releaseTimes, uint256[] memory releaseAmounts) public {
         require(releaseTimes.length == releaseAmounts.length, "SaftFactory: length mismatch");
         address saft = _createSaft(param, 0x0000000000000000000000000000000000000000000000000000000000000003);
         {

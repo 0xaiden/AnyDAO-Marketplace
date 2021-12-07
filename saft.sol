@@ -197,7 +197,7 @@ contract Saft is ERC721, ISaft {
             NftItem storage item = nftItems[_id];
             uint256 amt = _claimable(_id, item.lockedAmount, item.claimedAmount);
             require(amt != 0, "BaseSaft: not able to claim 0");
-            if (amt <= toClaim) {
+            if (amt < toClaim) {
                 item.claimedAmount += amt;
                 toClaim -= amt;
                 emit ClaimItem(_to, amt, _id);

@@ -10,8 +10,8 @@ contract FixedPrice is BaseMarket, OwnableUpgradeable {
     struct Order {
         address maker;
         address payment;
-        address[] nfts;
-        uint256[] tokenIds;
+        address nft;
+        uint256 tokenId;
         uint256 price;
         OrderSide side;
         address reserveBuyer;
@@ -22,8 +22,7 @@ contract FixedPrice is BaseMarket, OwnableUpgradeable {
 
     mapping(bytes32 => Order ) public orders;
 
-    event PlaceOrder(bytes32 _orderId, address _owner, address[] _nfts, uint256[] _tokenIds, address _payment, 
-        uint256 _price, uint256 _startTime, uint256 _duration, OrderSide _side);
+    event PlaceOrder(bytes32 _orderId, Order _order);
     event CancelOrder(bytes32 _orderId);
     event FillOrder(bytes32 _orderId, address _taker, uint256 _fee);
 
@@ -33,7 +32,7 @@ contract FixedPrice is BaseMarket, OwnableUpgradeable {
     }
 
     function _getOrderId(Order memory order) internal pure returns(bytes32) {
-        bytes32 listId = keccak256(abi.encodePacked(order.nfts, order.tokenIds, order.price, order.duration, order.side, order.reserveBuyer, order.nonce));
+        bytes32 listId = keccak256(abi.encodePacked(order.nft, order.tokenId, order.price, order.duration, order.side, order.reserveBuyer, order.nonce));
         return listId;
     }
 
@@ -51,24 +50,21 @@ contract FixedPrice is BaseMarket, OwnableUpgradeable {
         }
         require(_price > 0, "FixedPrice: price is zero");
         require(_nfts.length == _tokenIds.length, "FixedPrice: length mismatch");
-        require(_duration >= 5 minutes, "FixedPrice: duration should great than 5 minutes");
+        require(_duration >= 5 minutes, "FixedPrice: duration < 5 minutes");
         require(_startTime >= block.timestamp, "FixedPrice: invalid start time");
+
         for (uint256 i=0;i<_nfts.length;++i) {
             address _nft = _nfts[i];
             uint256 _tokenId = _tokenIds[i];
-            require(IERC721(_nft).ownerOf(_tokenId) == msg.sender, "FixedPrice: not the owner");
-        }
-        if (_side == OrderSide.BUY) {
-            // require(_reserveBuyer == address(0), "FixedPrice: reserveBuyer should be zero address for buy order");
-        } else {
-        }
-
-        bytes32 orderId;
-        {
+            if (_side == OrderSide.SELL) {
+                require(IERC721(_nft).ownerOf(_tokenId) == msg.sender, "FixedPrice: not the owner");
+            }
+            
+            bytes32 orderId;
             Order memory order = Order({
                 maker: msg.sender,
-                nfts: _nfts,
-                tokenIds: _tokenIds,
+                nft: _nft,
+                tokenId: _tokenId,
                 payment: _payment,
                 price: _price,
                 side: _side,
@@ -81,16 +77,15 @@ contract FixedPrice is BaseMarket, OwnableUpgradeable {
             orderId = _getOrderId(order);
             require(orders[orderId].maker == address(0), "FixedPrice: order existed");
             orders[orderId] = order;
-        }
-        
-        emit PlaceOrder(orderId, msg.sender, _nfts, _tokenIds, _payment, _price, _startTime, _duration, _side);
-        nextNonce += 1;
+            emit PlaceOrder(orderId, order);
+            nextNonce += 1;
+        }        
     }
 
     function fillOrder(bytes32 _orderId) external {
         Order memory order = orders[_orderId];
         require(order.maker != address(0), "FixedPrice: order not exist");
-        require(order.orderTime+order.duration >= block.timestamp, "FixedPrice: order expired");
+        require(block.timestamp <= (order.orderTime + order.duration), "FixedPrice: order expired");
         delete orders[_orderId];
 
         uint256 cost = order.price;
@@ -101,16 +96,16 @@ contract FixedPrice is BaseMarket, OwnableUpgradeable {
                 fund.withdrawERC20From(order.payment, order.maker, devAddr, fee);
             }
             fund.withdrawERC20From(order.payment, order.maker, msg.sender, cost-fee);
-            fund.withdrawNFTsFrom(order.nfts, msg.sender, order.maker, order.tokenIds);
+            fund.withdrawNFTFrom(order.nft, msg.sender, order.maker, order.tokenId);
         } else {
             if (order.reserveBuyer != address(0)) {
-                require(order.reserveBuyer == msg.sender, "FixedPrice: sender not from reserveBuyer");
+                require(order.reserveBuyer == msg.sender, "FixedPrice: sender not from reserve buyer");
             }
             if (fee != 0) {
                 fund.withdrawERC20From(order.payment, msg.sender, devAddr, fee);
             }
             fund.withdrawERC20From(order.payment, msg.sender, order.maker, cost-fee);
-            fund.withdrawNFTsFrom(order.nfts, order.maker, msg.sender, order.tokenIds);
+            fund.withdrawNFTFrom(order.nft, order.maker, msg.sender, order.tokenId);
         }
         emit FillOrder(_orderId, msg.sender, fee);
     }
