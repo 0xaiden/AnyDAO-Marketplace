@@ -94,6 +94,7 @@ contract DutchAuction is BaseMarket, OwnableUpgradeable {
 
     function buy(bytes32 _listId) public {
         Auction memory auction = auctions[_listId];
+        require(auction.owner != address(0), "DutchAuction: auction not exist");
         require(_expiredAt(auction) >= block.timestamp, "DutchAuction: auction is expired");
         delete auctions[_listId];
 

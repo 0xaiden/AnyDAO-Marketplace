@@ -21,6 +21,7 @@ contract EnglishAuction is BaseMarket, OwnableUpgradeable {
     struct Bid {
         address owner;
         uint256 price;
+        uint256 expiredAt;
     }
 
     mapping(bytes32 => Auction) public auctions;
@@ -30,7 +31,7 @@ contract EnglishAuction is BaseMarket, OwnableUpgradeable {
 
     event CreateAuction(bytes32 _listId, address _owner, address _nft, uint256 _tokenId, uint256 _startPrice, uint256 _reservePrice, uint256 _startTime, uint256 _duration, address _payment);
     event CancelAuction(bytes32 _listId);
-    event PlaceBid(address _owner, bytes32 _listId, uint256 _price, uint256 _oldPrice);
+    event PlaceBid(address _owner, bytes32 _listId, uint256 _price, uint256 _oldPrice, uint256 _expiredAt);
     event CancelBid(bytes32 _listId, uint256 _price);
     event Accept(bytes32 _listId, address _bidder, uint256 _price, uint256 _fee);
 
@@ -110,10 +111,11 @@ contract EnglishAuction is BaseMarket, OwnableUpgradeable {
         if (bid.owner == address(0)) {
             bid.owner = msg.sender;
         }
+        bid.expiredAt = block.timestamp + 7 days;
         uint256 oldPrice = bid.price;
         bid.price = _price;
         latestBids[_listId] = bid;
-        emit PlaceBid(msg.sender, _listId, _price, oldPrice);
+        emit PlaceBid(msg.sender, _listId, _price, oldPrice, bid.expiredAt);
     }
 
     function cancelBid(bytes32 _listId) public {
@@ -131,13 +133,12 @@ contract EnglishAuction is BaseMarket, OwnableUpgradeable {
 
     function accept(bytes32 _listId, address _bidder) public {
         Auction memory auction = auctions[_listId];
-        require(auction.owner != address(0), "EnglishAuction: auction does not exist");
         require(auction.owner == msg.sender, "EnglishAuction msg not from auction owner");
-        // require(_expiredAt(auction) <= block.timestamp, "EnglishAuction: auction is not end");
+        // require(block.timestamp < _expiredAt(auction), "EnglishAuction: auction is expired");
         Bid memory _bid = bids[_bidder][_listId];
-        require(_bid.owner != address(0), "EnglishAuction: auction is not bid");
+        require(_bid.owner != address(0), "EnglishAuction: bid not exist");
+        require(block.timestamp < _bid.expiredAt, "EnglishAuction: bid expired");
         delete bids[_bid.owner][_listId];
-        delete latestBids[_listId];
         delete auctions[_listId];
 
         uint256 cost = _bid.price;
