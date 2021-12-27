@@ -57,7 +57,7 @@ contract Saft is ERC721, ISaft {
             tDocHash = 0x0000000000000000000000000000000000000000000000000000000000000001;
         }
         factory = msg.sender;
-        token = _token;
+        token = _token; // no need to check zero address
         (webSite, description, logoUri, vesting) = IFactory(factory).getSaftParam1();
     }
 
@@ -84,7 +84,7 @@ contract Saft is ERC721, ISaft {
     // }
 
     function transferDevAddr(address _newDev) public onlyDev {
-        devAddr = _newDev;
+        devAddr = _newDev; // can be zero address
     }
 
     function _baseURI() internal view virtual override returns (string memory) {
@@ -110,7 +110,7 @@ contract Saft is ERC721, ISaft {
         require(_isApprovedOrOwner(msg.sender, _tokenId), "BaseSaft: no access to the token");
         NftItem memory item = nftItems[_tokenId];
         require(item.lockedAmount == 0, "BaseSaft: invalid tokenId");
-        require(item.claimedAmount != item.lockedAmount, "BaseSaft: token not claimed before burn");
+        require(item.claimedAmount == item.lockedAmount, "BaseSaft: token not claimed before burn");
         _burn(_tokenId);
     }
 

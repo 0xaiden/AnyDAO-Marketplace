@@ -34,10 +34,19 @@ contract SaftFactory is OwnableUpgradeable {
     event CreateStaged(address saft, SaftParam param, uint256[] releaseTimes, uint256[] releaseAmounts);
     event Blacked(address addr);
 
+    uint private unlocked;
+    modifier lock() {
+        require(unlocked == 1, "SaftFactory: LOCKED");
+        unlocked = 0;
+        _;
+        unlocked = 1;
+    }
+
     function initialize(address _acc, address _devAddr) public initializer {
         __Ownable_init();
         acc = _acc;
         devAddress = _devAddr;
+        unlocked = 1;
     }
 
     function devAddr() external view returns(address) {
@@ -56,7 +65,7 @@ contract SaftFactory is OwnableUpgradeable {
         require(IERC20Upgradeable(acc).transfer(to, IERC20Upgradeable(acc).balanceOf(address(this))));
     }
 
-    function addVesting(address addr) public {
+    function addVesting(address addr) public onlyOwner {
         _vestingModels[IVesting(addr).name()] = addr;
     }
 
@@ -68,7 +77,7 @@ contract SaftFactory is OwnableUpgradeable {
         return (saftParam.webSite, saftParam.description, saftParam.logoUri, saftParam.vesting);
     }
 
-    function _createSaft(SaftParam memory param, bytes32 _vesting) internal returns(address) {
+    function _createSaft(SaftParam memory param, bytes32 _vesting) internal lock returns(address) {
         require(param.counts.length == param.tokenAmounts.length, "SaftFactory: length mismatch");
         param.vesting = _vestingModels[_vesting];
         require(param.vesting != address(0), "SaftFactory: invalid vesting");
