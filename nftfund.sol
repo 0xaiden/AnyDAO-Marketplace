@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.0;
+pragma solidity 0.8.4;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -13,7 +13,6 @@ contract NFTFund is IERC721Receiver, Ownable {
 
     mapping(address => bool) markets;
     mapping(address => bool) public availablePayments;
-    mapping(address => uint256) fees;
 
     event DepositERC20(address _token, address _from, uint256 _amount);
     event WithdrawERC20(address _token, address _to, uint256 _amount);
@@ -98,6 +97,7 @@ contract NFTFund is IERC721Receiver, Ownable {
 
 
     function depositNFTs(address[] memory _nfts, address _from, uint256[] memory _tokenIds) public isFromMarket(msg.sender) {
+        require(_nfts.length==_tokenIds.length, "NFTFund: _nfts.length and _tokenIds.length are not same");
         for (uint256 i=0;i<_nfts.length;++i) {
             IERC721(_nfts[i]).safeTransferFrom(_from, address(this), _tokenIds[i], "");
         }
@@ -105,6 +105,7 @@ contract NFTFund is IERC721Receiver, Ownable {
     }
 
     function withdrawNFTs(address[] memory _nfts, address _to, uint256[] memory _tokenIds) public isFromMarket(msg.sender) {
+        require(_nfts.length==_tokenIds.length, "NFTFund: _nfts.length and _tokenIds.length are not same");
         require(_to != address(0), "NFTFund: zero address found");
         for (uint256 i=0;i<_nfts.length;++i) {
             IERC721(_nfts[i]).safeTransferFrom(address(this), _to, _tokenIds[i]);
@@ -113,6 +114,7 @@ contract NFTFund is IERC721Receiver, Ownable {
     }
 
     function withdrawNFTsFrom(address[] memory _nfts, address _from, address _to, uint256[] memory _tokenIds) public isFromMarket(msg.sender) {
+        require(_nfts.length==_tokenIds.length, "NFTFund: _nfts.length and _tokenIds.length are not same");
         require(_to != address(0), "NFTFund: zero address found");
         for (uint256 i=0;i<_nfts.length;++i) {
             IERC721(_nfts[i]).safeTransferFrom(_from, _to, _tokenIds[i]);

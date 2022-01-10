@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.0;
+pragma solidity 0.8.4;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
@@ -15,18 +15,12 @@ contract SaftFactory is OwnableUpgradeable {
 
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
-    struct TokenCreator {
-        address token;
-        address creator;
-    }
-
     SaftParam saftParam;
     address public acc;
     address public devAddress;
     uint256 public fee;
     
     mapping(bytes32 => address) _vestingModels;
-    mapping(address => bool) _safts;
     mapping(address => uint256) public nextId;
 
     event CreateOnetime(address saft, SaftParam param, uint256 releaseTime);
@@ -42,7 +36,7 @@ contract SaftFactory is OwnableUpgradeable {
         unlocked = 1;
     }
 
-    function initialize(address _acc, address _devAddr) public initializer {
+    function initialize(address _acc, address _devAddr) external initializer {
         __Ownable_init();
         acc = _acc;
         devAddress = _devAddr;
@@ -53,19 +47,19 @@ contract SaftFactory is OwnableUpgradeable {
         return devAddress;
     }
 
-    function black(address addr) public onlyOwner {
-        emit Blacked(addr);
+    function black(address addr) external onlyOwner {
+        emit Blacked(addr); // used in subgraph, to build a black list
     }
 
-    function setFee(uint256 _fee) public onlyOwner {
+    function setFee(uint256 _fee) external onlyOwner {
         fee = _fee;
     }
 
-    function claimFee(address to) public onlyOwner {
-        require(IERC20Upgradeable(acc).transfer(to, IERC20Upgradeable(acc).balanceOf(address(this))));
+    function claimFee(address to) external onlyOwner {
+        require(IERC20Upgradeable(acc).transfer(to, IERC20Upgradeable(acc).balanceOf(address(this))), "SaftFactory: failed to claim fee");
     }
 
-    function addVesting(address addr) public onlyOwner {
+    function addVesting(address addr) external onlyOwner {
         _vestingModels[IVesting(addr).name()] = addr;
     }
 
@@ -112,7 +106,7 @@ contract SaftFactory is OwnableUpgradeable {
         return address(saft);
     }
 
-    function createOnetime(SaftParam memory param, uint256 releaseTime) public {
+    function createOnetime(SaftParam memory param, uint256 releaseTime) external {
         require(releaseTime > block.timestamp, "SaftFactory: release time < now");
         address saft = _createSaft(param, 0x0000000000000000000000000000000000000000000000000000000000000001);
         Onetime(saftParam.vesting).add(saft, releaseTime);
@@ -120,7 +114,7 @@ contract SaftFactory is OwnableUpgradeable {
         delete saftParam;
     }
 
-    function createLinearly(SaftParam memory param, uint256 startTime, uint256 endTime, uint256 count) public {
+    function createLinearly(SaftParam memory param, uint256 startTime, uint256 endTime, uint256 count) external {
         require(startTime > block.timestamp, "SaftFactory: start time < now");
         address saft = _createSaft(param, 0x0000000000000000000000000000000000000000000000000000000000000002);
         Linearly(saftParam.vesting).add(saft, startTime, endTime, count);
@@ -128,7 +122,7 @@ contract SaftFactory is OwnableUpgradeable {
         delete saftParam;
     }
 
-    function createStaged(SaftParam memory param, uint256[] memory releaseTimes, uint256[] memory releaseAmounts) public {
+    function createStaged(SaftParam memory param, uint256[] calldata releaseTimes, uint256[] calldata releaseAmounts) external {
         require(releaseTimes.length == releaseAmounts.length, "SaftFactory: length mismatch");
         address saft = _createSaft(param, 0x0000000000000000000000000000000000000000000000000000000000000003);
         {

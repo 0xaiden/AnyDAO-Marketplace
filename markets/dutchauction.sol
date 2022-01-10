@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.0;
+pragma solidity 0.8.4;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "./basemarket.sol";
@@ -31,7 +31,7 @@ contract DutchAuction is BaseMarket, OwnableUpgradeable {
     event AuctionCanceled(bytes32 _listId);
     event DutchBuy(address _owner, bytes32 _listId, uint256 _price, uint256 _fee);
 
-    function initialize(address _fund) initializer public {
+    function initialize(address _fund) initializer external {
         __base_init(_fund);
         __Ownable_init();
     }
@@ -48,6 +48,7 @@ contract DutchAuction is BaseMarket, OwnableUpgradeable {
 
     function getCurrentPrice(bytes32 _listId) public view returns(uint256) {
         Auction memory auction = auctions[_listId];
+        require(auction.owner != address(0), "DutchAuction: auction not exist");
         return _getCurrentPrice(auction);
     }
 
@@ -61,7 +62,7 @@ contract DutchAuction is BaseMarket, OwnableUpgradeable {
     }
 
     function createAuction(address _nft, uint256 _tokenId, uint256 _startPrice, uint256 _endPrice, 
-            address _payment, uint256 _startTime, uint256 _duration) public checkPayment(_payment) {
+            address _payment, uint256 _startTime, uint256 _duration) external checkPayment(_payment) {
         require(_duration >= 5 minutes, "DutchAuction: invalid duration");
         require(_startPrice > _endPrice, "DutchAuction: invalid price");
         require(_startTime > block.timestamp, "DutchAuction: invalid start time");
@@ -84,7 +85,7 @@ contract DutchAuction is BaseMarket, OwnableUpgradeable {
         emit AuctionCreated(listId, msg.sender, _nft, _tokenId, _startPrice, _endPrice, _payment, _startTime, _duration, _nonce);
     }
 
-    function cancelAuction(bytes32 listId) public {
+    function cancelAuction(bytes32 listId) external {
         Auction memory auction = auctions[listId];
         require(auction.owner != address(0), "DutchAuction: auction is expired");
         require(auction.owner == msg.sender, "DutchAuction: msg not from auction owner");
@@ -92,7 +93,7 @@ contract DutchAuction is BaseMarket, OwnableUpgradeable {
         emit AuctionCanceled(listId);
     }
 
-    function buy(bytes32 _listId) public {
+    function buy(bytes32 _listId) external {
         Auction memory auction = auctions[_listId];
         require(auction.owner != address(0), "DutchAuction: auction not exist");
         require(_expiredAt(auction) >= block.timestamp, "DutchAuction: auction is expired");

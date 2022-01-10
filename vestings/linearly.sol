@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.0;
+pragma solidity 0.8.4;
 
 import "./basevesting.sol";
 
@@ -21,6 +21,7 @@ contract Linearly is BaseVesting {
     }
 
     function add(address saft, uint256 startTime, uint256 endTime, uint256 count) public onlyFactory {
+        require(startTime < endTime, "Linearly: startTime must be less than endTime.");
         items[saft] = LinearlyItem({
             startTime: startTime,
             endTime: endTime,

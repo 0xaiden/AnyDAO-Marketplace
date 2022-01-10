@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.0;
+pragma solidity 0.8.4;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "./basemarket.sol";
@@ -26,7 +26,7 @@ contract FixedPrice is BaseMarket, OwnableUpgradeable {
     event CancelOrder(bytes32 _orderId);
     event FillOrder(bytes32 _orderId, address _taker, uint256 _fee);
 
-    function initialize(address _fund) public initializer {
+    function initialize(address _fund) external initializer {
         __base_init(_fund);
         __Ownable_init();
     }
@@ -42,7 +42,7 @@ contract FixedPrice is BaseMarket, OwnableUpgradeable {
         return order.price;
     }
 
-    function placeOrder(address[] memory _nfts, uint256[] memory _tokenIds, OrderSide _side, address _payment,
+    function placeOrder(address[] calldata _nfts, uint256[] calldata _tokenIds, OrderSide _side, address _payment,
             uint256 _price, uint256 _startTime, uint256 _duration) external checkPayment(_payment) {
         
         if (_side == OrderSide.BUY) {

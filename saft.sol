@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.0;
+pragma solidity 0.8.4;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
@@ -57,6 +57,7 @@ contract Saft is ERC721, ISaft {
             tDocHash = 0x0000000000000000000000000000000000000000000000000000000000000001;
         }
         factory = msg.sender;
+        devAddr = IFactory(factory).devAddr();
         token = _token; // no need to check zero address
         (webSite, description, logoUri, vesting) = IFactory(factory).getSaftParam1();
     }
@@ -83,7 +84,7 @@ contract Saft is ERC721, ISaft {
     //     return SaftState.UNVERIFIED;
     // }
 
-    function transferDevAddr(address _newDev) public onlyDev {
+    function transferDevAddr(address _newDev) external onlyDev {
         devAddr = _newDev; // can be zero address
     }
 
@@ -91,7 +92,7 @@ contract Saft is ERC721, ISaft {
         return "https://accessifi.io/saft/";
     }
 
-    function energencyWithdraw(address _token, address _to, uint256 _amount) public onlyDev {
+    function emergencyWithdraw(address _token, address _to, uint256 _amount) external onlyDev {
         IERC20(_token).safeTransfer(_to, _amount);
     }
 
@@ -106,10 +107,10 @@ contract Saft is ERC721, ISaft {
         return tokenId;
     }
 
-    function burnSaft(uint256 _tokenId) public {
+    function burnSaft(uint256 _tokenId) external {
         require(_isApprovedOrOwner(msg.sender, _tokenId), "BaseSaft: no access to the token");
         NftItem memory item = nftItems[_tokenId];
-        require(item.lockedAmount == 0, "BaseSaft: invalid tokenId");
+        require(item.lockedAmount != 0, "BaseSaft: invalid tokenId");
         require(item.claimedAmount == item.lockedAmount, "BaseSaft: token not claimed before burn");
         _burn(_tokenId);
     }
@@ -149,7 +150,7 @@ contract Saft is ERC721, ISaft {
         }
     }
 
-    function verify(uint256 nonce, uint256 refBlockNumber, bytes32 _docHash, bytes memory sig) public {
+    function verify(uint256 nonce, uint256 refBlockNumber, bytes32 _docHash, bytes memory sig) external {
         require((refBlockNumber >= (block.number-50)) && (refBlockNumber < (block.number + 50)), "BaseSaft: invalid ref block number");
         require(iDocHash != 0x0000000000000000000000000000000000000000000000000000000000000001, "BaseSaft: deposited");
         if (iDocHash == tDocHash) {
